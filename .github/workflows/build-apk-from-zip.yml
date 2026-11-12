@@ -1,0 +1,63 @@
+name: Build APK from zip
+
+# 仓库里只需要放两样东西：
+#   1) All-in-main-workbuddy.zip（我给你的源码包，放在仓库根目录）
+#   2) 本文件（路径必须是 .github/workflows/build-apk-from-zip.yml）
+# push 后在 Actions 页跑完，Artifacts 里取 AllIn-apk。
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Unzip source
+        run: |
+          ls -la
+          mkdir -p src
+          unzip -q All-in-main-workbuddy.zip -d src
+          ls -la src
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+          log-accepted-android-sdk-licenses: false
+
+      - name: Install Android SDK 37
+        run: |
+          yes | sdkmanager --licenses > /dev/null 2>&1 || true
+          sdkmanager --install "platforms;android-37.0"
+
+      - name: Generate signing keystore
+        run: |
+          keytool -genkeypair -v \
+            -keystore "$RUNNER_TEMP/magpie.keystore" \
+            -alias magpie -keyalg RSA -keysize 2048 -validity 10000 \
+            -storepass magpie123 -keypass magpie123 \
+            -dname "CN=FJ, O=FJ"
+
+      - name: Assemble release
+        working-directory: src/All-in-main
+        env:
+          MAGPIE_KEYSTORE: ${{ runner.temp }}/magpie.keystore
+          MAGPIE_KEYSTORE_PASS: magpie123
+          MAGPIE_KEY_ALIAS: magpie
+          MAGPIE_KEY_PASS: magpie123
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon --stacktrace
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AllIn-apk
+          path: src/All-in-main/app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
