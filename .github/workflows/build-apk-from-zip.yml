@@ -37,18 +37,15 @@ jobs:
           yes | sdkmanager --licenses > /dev/null 2>&1 || true
           sdkmanager --install "platforms;android-37.0"
 
-      - name: Generate signing keystore
+      - name: Verify fixed keystore
         run: |
-          keytool -genkeypair -v \
-            -keystore "$RUNNER_TEMP/magpie.keystore" \
-            -alias magpie -keyalg RSA -keysize 2048 -validity 10000 \
-            -storepass magpie123 -keypass magpie123 \
-            -dname "CN=FJ, O=FJ"
+          ls -l tools/magpie.keystore
+          keytool -list -keystore tools/magpie.keystore -storepass magpie123 | head -5
 
       - name: Assemble release
         working-directory: src/All-in-main
         env:
-          MAGPIE_KEYSTORE: ${{ runner.temp }}/magpie.keystore
+          MAGPIE_KEYSTORE: ${{ github.workspace }}/tools/magpie.keystore
           MAGPIE_KEYSTORE_PASS: magpie123
           MAGPIE_KEY_ALIAS: magpie
           MAGPIE_KEY_PASS: magpie123
